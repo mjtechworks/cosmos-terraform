@@ -1,3 +1,7 @@
+provider "aws" {
+  region = var.aws_region
+}
+
 # Amazon Machine Id (AMI)
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -34,30 +38,6 @@ resource "local_file" "ssh_key" {
   content  = tls_private_key.pk.private_key_pem
 }
 
-resource "aws_security_group" "controller" {
-  name        = "node"
-  description = "Security group for node"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.controller_ip]
-  }
-
-  egress {
-    description = "Allow ALL"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"] #tfsec:ignore:aws-vpc-no-public-egress-sgr
-  }
-
-  tags = {
-    Name = "node_securitygroup"
-  }
-}
-
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "v3.14.0"
@@ -65,14 +45,15 @@ module "vpc" {
   for_each = var.nodes
 
   name = "vpc-${each.key}"
-  cidr = var.cidr
+  cidr = each.value.cidr
 
   azs               =  data.aws_availability_zones.available.names
   private_subnets    = each.value.private_subnet_cidr_blocks
   public_subnets     = each.value.public_subnet_cidr_blocks
+  default_vpc_enable_dns_hostnames = true
 
   tags = {
-    CIDR = var.cidr
+    CIDR = each.value.cidr
   }
 }
 
@@ -83,13 +64,8 @@ module "cascadia_nodes" {
   for_each = var.nodes
 
   vpc_id = module.vpc[each.key].vpc_id
-  # vpc_security_group_ids = [
-  #   aws_security_group.controller.id,
-  #   # aws_security_group.node_p2p_port.id,
-  #   # aws_security_group.private_validator_port.id,
-  #   # aws_security_group.exporter_ports.id
-  # ]
-  subnet_id  = module.vpc[each.key].public_subnets[0]
+
+  subnet_id  = module.vpc[each.key].private_subnets[0]
   ubuntu_ami = data.aws_ami.ubuntu.id
 
   key_name = aws_key_pair.node.key_name
@@ -99,4 +75,28 @@ module "cascadia_nodes" {
 
   instance_ebs_storage_type = each.value.storage_type
   instance_ebs_storage_size = each.value.storage_size
+}
+
+locals {
+  peerings = distinct(flatten([
+    for i, requester in keys(var.nodes) : [
+      for j, accepter in keys(var.nodes) : {
+          requester = requester
+          accepter = accepter
+      } if i < j
+    ]
+  ]))
+}
+
+module "vpc_peering" {
+  source = "cloudposse/vpc-peering/aws"
+  for_each = { for index, peering in local.peerings : index => peering if var.nodes[peering.requester].node_type == "sentry" || var.nodes[peering.accepter].node_type == "sentry"}
+
+  namespace        = "eg"
+  stage            = "dev"
+  name             = "cluster"
+  requestor_vpc_id = module.vpc[each.value.requester].vpc_id
+  acceptor_vpc_id  = module.vpc[each.value.accepter].vpc_id
+  requestor_allow_remote_vpc_dns_resolution  = false
+  acceptor_allow_remote_vpc_dns_resolution  = false
 }

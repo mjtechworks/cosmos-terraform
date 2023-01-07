@@ -1,3 +1,9 @@
+variable "controller_ip" {
+  type        = string
+  description = "controller_ip"
+  default     = "45.126.3.252/32"
+}
+
 variable "ubuntu_ami" {
   description = "ubuntu_ami"
   type        = string
@@ -39,8 +45,8 @@ variable "key_name" {
   description = "key_name"
 }
 
-variable "vpc_security_group_ids" {
-  description = "vpc_security_group_ids"
-  type        = list(any)
-  default     = []
-}
+# variable "vpc_security_group_ids" {
+#   description = "vpc_security_group_ids"
+#   type        = list(any)
+#   default     = []
+# }
