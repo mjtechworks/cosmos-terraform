@@ -1,9 +1,3 @@
-variable "controller_ip" {
-  type        = string
-  description = "controller_ip"
-  default     = "45.126.3.252/32"
-}
-
 variable "aws_region" {
   description = "AWS region"
   type        = string
@@ -24,28 +18,31 @@ variable "nodes" {
         node_type = string,
         storage_type = string,
         storage_size = string,
+        cidr = string,
         private_subnet_cidr_blocks = list(string),
         public_subnet_cidr_blocks = list(string)
     }))
 
     default = {
-        node0 = {
+        validator0 = {
             instance_type           = "t3a.2xlarge",
             instance_name           = "Validator0"
             node_type               = "validator"
             storage_type            = "gp2"
             storage_size            = "1000"
+            cidr                    = "10.0.0.0/16"
             private_subnet_cidr_blocks  = ["10.0.101.0/24", "10.0.102.0/24"]
-            public_subnet_cidr_blocks   = ["10.0.1.0/24", "10.0.2.0/24"]
+            public_subnet_cidr_blocks   = []
         },
-        node1 = {
+        validator1 = {
             instance_type           = "t3a.2xlarge",
             instance_name           = "Validator1"
             node_type               = "validator"
             storage_type            = "gp2"
             storage_size            = "1000"
-            private_subnet_cidr_blocks  = ["10.0.103.0/24", "10.0.104.0/24",]
-            public_subnet_cidr_blocks   = ["10.0.3.0/24", "10.0.4.0/24"]
+            cidr                    = "11.0.0.0/16"
+            private_subnet_cidr_blocks  = ["11.0.101.0/24", "11.0.102.0/24"]
+            public_subnet_cidr_blocks   = []
         },
         sentry0 = {
             instance_type           = "t3a.xlarge",
@@ -53,8 +50,9 @@ variable "nodes" {
             node_type               = "sentry"
             storage_type            = "gp2"
             storage_size            = "1000"
-            private_subnet_cidr_blocks  = ["10.0.105.0/24", "10.0.106.0/24"]
-            public_subnet_cidr_blocks   = ["10.0.5.0/24", "10.0.6.0/24"]
+            cidr                    = "101.0.0.0/16"
+            private_subnet_cidr_blocks  = ["101.0.101.0/24", "101.0.102.0/24"]
+            public_subnet_cidr_blocks   = ["101.0.1.0/24", "101.0.2.0/24"]
         },
         sentry1 = {
             instance_type           = "t3a.xlarge",
@@ -62,8 +60,9 @@ variable "nodes" {
             node_type               = "sentry"
             storage_type            = "gp2"
             storage_size            = "500"
-            private_subnet_cidr_blocks  = ["10.0.107.0/24", "10.0.108.0/24"]
-            public_subnet_cidr_blocks   = ["10.0.7.0/24", "10.0.8.0/24"]
+            cidr                    = "102.0.0.0/16"
+            private_subnet_cidr_blocks  = ["102.0.101.0/24", "102.0.102.0/24"]
+            public_subnet_cidr_blocks   = ["102.0.1.0/24", "102.0.2.0/24"]
         },
     }
 }
