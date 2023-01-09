@@ -88,8 +88,12 @@ locals {
   ]))
 }
 
+// peering of sentry node with all types of nodes (there is no peering connection between validators)
 module "vpc_peering" {
   source = "cloudposse/vpc-peering/aws"
+  depends_on = [module.vpc, module.cascadia_nodes]
+  auto_accept = true
+
   for_each = { for index, peering in local.peerings : index => peering if var.nodes[peering.requester].node_type == "sentry" || var.nodes[peering.accepter].node_type == "sentry"}
 
   namespace        = "eg"
@@ -99,4 +103,29 @@ module "vpc_peering" {
   acceptor_vpc_id  = module.vpc[each.value.accepter].vpc_id
   requestor_allow_remote_vpc_dns_resolution  = false
   acceptor_allow_remote_vpc_dns_resolution  = false
+}
+
+module "p2p_sg" {
+  source = "terraform-aws-modules/security-group/aws"
+  depends_on = [module.vpc_peering]
+
+  name = "p2p"
+  for_each = var.nodes
+  vpc_id = module.vpc[each.key].vpc_id
+
+  ingress_with_cidr_blocks = distinct(flatten([
+  for ip in values(module.cascadia_nodes)[*].private_ip: [{
+      from_port = 26656
+      to_port = 26656
+      protocol = "tcp"
+      cidr_blocks =  "${ip}/32"  #join(", ", [for ip in values(module.cascadia_nodes)[*].private_ip: format("%q", "${ip}/32")])
+    }]
+  ]))
+}
+
+resource "aws_network_interface_sg_attachment" "sg_attachment" {
+  for_each = module.p2p_sg
+
+  security_group_id    = "${module.p2p_sg[each.key].security_group_id}"
+  network_interface_id = "${module.cascadia_nodes[each.key].primary_network_interface_id}"
 }
