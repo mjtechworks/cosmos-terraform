@@ -45,6 +45,11 @@ variable "key_name" {
   description = "key_name"
 }
 
+variable "security_groups" {
+  type        = list(string)
+  description = "The security groups this node should be placed in."
+}
+
 # variable "vpc_security_group_ids" {
 #   description = "vpc_security_group_ids"
 #   type        = list(any)

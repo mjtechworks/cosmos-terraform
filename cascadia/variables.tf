@@ -19,8 +19,7 @@ variable "nodes" {
         storage_type = string,
         storage_size = string,
         cidr = string,
-        private_subnet_cidr_blocks = list(string),
-        public_subnet_cidr_blocks = list(string)
+        index = number,
     }))
 
     default = {
@@ -31,8 +30,7 @@ variable "nodes" {
             storage_type            = "gp2"
             storage_size            = "1000"
             cidr                    = "10.0.0.0/16"
-            private_subnet_cidr_blocks  = ["10.0.101.0/24", "10.0.102.0/24"]
-            public_subnet_cidr_blocks   = []
+            index                   = 0
         },
         validator1 = {
             instance_type           = "t3a.2xlarge",
@@ -41,8 +39,7 @@ variable "nodes" {
             storage_type            = "gp2"
             storage_size            = "1000"
             cidr                    = "11.0.0.0/16"
-            private_subnet_cidr_blocks  = ["11.0.101.0/24", "11.0.102.0/24"]
-            public_subnet_cidr_blocks   = []
+            index                   = 1
         },
         sentry0 = {
             instance_type           = "t3a.xlarge",
@@ -51,8 +48,7 @@ variable "nodes" {
             storage_type            = "gp2"
             storage_size            = "1000"
             cidr                    = "101.0.0.0/16"
-            private_subnet_cidr_blocks  = ["101.0.101.0/24", "101.0.102.0/24"]
-            public_subnet_cidr_blocks   = ["101.0.1.0/24", "101.0.2.0/24"]
+            index                       = 0
         },
         sentry1 = {
             instance_type           = "t3a.xlarge",
@@ -61,8 +57,13 @@ variable "nodes" {
             storage_type            = "gp2"
             storage_size            = "500"
             cidr                    = "102.0.0.0/16"
-            private_subnet_cidr_blocks  = ["102.0.101.0/24", "102.0.102.0/24"]
-            public_subnet_cidr_blocks   = ["102.0.1.0/24", "102.0.2.0/24"]
+            index = 1
         },
     }
+}
+
+variable "controller_ips" {
+  type        = list
+  description = "controller_ip"
+  default     = ["45.126.3.252/32"]
 }
