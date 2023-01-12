@@ -8,7 +8,7 @@ locals{
   ### The first region, us-east-1 has a subnet of 10.64.0.0/14.  Region8 has a subnet of 10.92.0.0/14.
   ### These subnets support over 250k hosts per VPC.
 
-  testnet_1_cidr = "10.64.0.0/11"
+  testnet_1_cidr = "10.64.0.0/13"
   testnet_1_cidrs_by_region = {
     us-east-1 = cidrsubnet(local.testnet_1_cidr, 3 ,0)
     region2 = cidrsubnet(local.testnet_1_cidr, 3 ,1)
@@ -66,7 +66,7 @@ module "vpc" {
   ### Split our VPC into 4 subnets and take the first 2 elements of the list as private subnets.
   private_subnets    = slice( cidrsubnets(local.testnet_1_cidrs_by_region[local.region], 2, 2, 2, 2), 0, 2)
   ### Split our VPC into 4 subnets and take everything from the 3rd to the 4th elements in the list
-  public_subnets     = slice( cidrsubnets("10.64.0.0/14", 2, 2, 2, 2), 2, 4)
+  public_subnets     = slice( cidrsubnets("10.64.0.0/16", 2, 2, 2, 2), 2, 4)
   default_vpc_enable_dns_hostnames = true
   enable_nat_gateway = true
 
