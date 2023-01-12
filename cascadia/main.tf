@@ -8,7 +8,7 @@ locals{
   ### The first region, us-east-1 has a subnet of 10.64.0.0/14.  Region8 has a subnet of 10.92.0.0/14.
   ### These subnets support over 250k hosts per VPC.
 
-  testnet_1_cidr = "10.64.0.0/14"
+  testnet_1_cidr = "10.64.0.0/11"
   testnet_1_cidrs_by_region = {
     us-east-1 = cidrsubnet(local.testnet_1_cidr, 3 ,0)
     region2 = cidrsubnet(local.testnet_1_cidr, 3 ,1)
