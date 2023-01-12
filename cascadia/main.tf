@@ -1,6 +1,23 @@
 provider "aws" {
   region = var.aws_region
 }
+locals{
+  ### This assigns the IP Block of 10.64.0.0 to 10.95.255.255 to this specific subnet.
+  ### It then splits this block up into 8 equal sized chunks along subnet boundries for assignment to different regions
+  ### The cidrsubnet commands can be typed directly into terraform console to see what they render
+  ### The first region, us-east-1 has a subnet of 10.64.0.0/14.  Region8 has a subnet of 10.92.0.0/14.
+  ### These subnets support over 250k hosts per VPC.
+
+  testnet_1_cidr = "10.64.0.0/14"
+  testnet_1_cidrs_by_region = {
+    us-east-1 = cidrsubnet(local.testnet_1_cidr, 3 ,0)
+    region2 = cidrsubnet(local.testnet_1_cidr, 3 ,1)
+    region3 = cidrsubnet(local.testnet_1_cidr, 3 ,2)
+    # ...
+    region8 = cidrsubnet(local.testnet_1_cidr, 3 ,7) # Last one
+  }
+  region = var.aws_region
+}
 
 # Amazon Machine Id (AMI)
 data "aws_ami" "ubuntu" {
@@ -42,18 +59,19 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "v3.14.0"
 
-  for_each = var.nodes
-
-  name = "vpc-${each.key}"
-  cidr = each.value.cidr
+  name = "cascadia-testnet-1-vpc-${local.region}"
+  cidr = local.testnet_1_cidrs_by_region[local.region]
 
   azs               =  data.aws_availability_zones.available.names
-  private_subnets    = each.value.private_subnet_cidr_blocks
-  public_subnets     = each.value.public_subnet_cidr_blocks
+  ### Split our VPC into 4 subnets and take the first 2 elements of the list as private subnets.
+  private_subnets    = slice( cidrsubnets(local.testnet_1_cidrs_by_region[local.region], 2, 2, 2, 2), 0, 2)
+  ### Split our VPC into 4 subnets and take everything from the 3rd to the 4th elements in the list
+  public_subnets     = slice( cidrsubnets("10.64.0.0/14", 2, 2, 2, 2), 2, 4)
   default_vpc_enable_dns_hostnames = true
+  enable_nat_gateway = true
 
   tags = {
-    CIDR = each.value.cidr
+    CIDR = local.testnet_1_cidrs_by_region[local.region]
   }
 }
 
@@ -63,9 +81,10 @@ module "cascadia_nodes" {
 
   for_each = var.nodes
 
-  vpc_id = module.vpc[each.key].vpc_id
+  vpc_id = module.vpc.vpc_id
 
-  subnet_id  = module.vpc[each.key].private_subnets[0]
+  subnet_id  = each.value.node_type == "sentry" ?  element(module.vpc.public_subnets, each.value.index % length(module.vpc.public_subnets) ) : element(module.vpc.private_subnets, each.value.index% length(module.vpc.public_subnets))
+  security_groups = each.value.node_type == "sentry" ? [aws_security_group.https_ingress.id] : [aws_security_group.ssh.id]
   ubuntu_ami = data.aws_ami.ubuntu.id
 
   key_name = aws_key_pair.node.key_name
@@ -77,55 +96,3 @@ module "cascadia_nodes" {
   instance_ebs_storage_size = each.value.storage_size
 }
 
-locals {
-  peerings = distinct(flatten([
-    for i, requester in keys(var.nodes) : [
-      for j, accepter in keys(var.nodes) : {
-          requester = requester
-          accepter = accepter
-      } if i < j
-    ]
-  ]))
-}
-
-// peering of sentry node with all types of nodes (there is no peering connection between validators)
-module "vpc_peering" {
-  source = "cloudposse/vpc-peering/aws"
-  depends_on = [module.vpc, module.cascadia_nodes]
-  auto_accept = true
-
-  for_each = { for index, peering in local.peerings : index => peering if var.nodes[peering.requester].node_type == "sentry" || var.nodes[peering.accepter].node_type == "sentry"}
-
-  namespace        = "eg"
-  stage            = "dev"
-  name             = "cluster"
-  requestor_vpc_id = module.vpc[each.value.requester].vpc_id
-  acceptor_vpc_id  = module.vpc[each.value.accepter].vpc_id
-  requestor_allow_remote_vpc_dns_resolution  = false
-  acceptor_allow_remote_vpc_dns_resolution  = false
-}
-
-module "p2p_sg" {
-  source = "terraform-aws-modules/security-group/aws"
-  depends_on = [module.vpc_peering]
-
-  name = "p2p"
-  for_each = var.nodes
-  vpc_id = module.vpc[each.key].vpc_id
-
-  ingress_with_cidr_blocks = distinct(flatten([
-  for ip in values(module.cascadia_nodes)[*].private_ip: [{
-      from_port = 26656
-      to_port = 26656
-      protocol = "tcp"
-      cidr_blocks =  "${ip}/32"  #join(", ", [for ip in values(module.cascadia_nodes)[*].private_ip: format("%q", "${ip}/32")])
-    }]
-  ]))
-}
-
-resource "aws_network_interface_sg_attachment" "sg_attachment" {
-  for_each = module.p2p_sg
-
-  security_group_id    = "${module.p2p_sg[each.key].security_group_id}"
-  network_interface_id = "${module.cascadia_nodes[each.key].primary_network_interface_id}"
-}
